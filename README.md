@@ -21,3 +21,5 @@ Mount `/mcp` behind an HTTPS reverse proxy for remote use and set `MCP_PUBLIC_HO
 The adapter contains the twelve-command contract but registers only exact advertised read operations. It cannot make missing gateway routes work. It does not implement CMS publishing, approvals, client write confirmations, or `/rank-update`; it never reaches Rank jobs directly. Goldworth is read-only. A successful local test does not certify Claude Desktop or Cursor compatibility or a production deployment; those remain release gates.
 
 Run `npm run build && npm test` before changes. The tests cover catalog parity, fail-closed advertisement, basic Streamable HTTP handshake, Origin rejection, and revocation on the next request. No real workspace key is needed.
+
+The CI workflow template is in `docs/ci-workflow-template.yml`. It is not active because the publishing credential lacks GitHub's `workflow` scope; a maintainer must move it to `.github/workflows/ci.yml` with an authorized credential.

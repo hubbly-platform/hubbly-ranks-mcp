@@ -15,9 +15,13 @@ test("HTTP MCP denies anonymous callers and registers no unadvertised tools", as
   let available: unknown[] = [];
   const gateway = createServer((request, response) => {
     gatewayCalls += 1;
-    assert.equal(request.url, "/v1/agent/capabilities");
     assert.equal(request.headers.authorization, `Bearer ${TOKEN}`);
     if (revoked) { response.writeHead(401).end(); return; }
+    if (request.url === "/v1/agent/status") {
+      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ready" }));
+      return;
+    }
+    assert.equal(request.url, "/v1/agent/capabilities");
     response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ available }));
   });
   await new Promise<void>((resolve) => gateway.listen(0, "127.0.0.1", resolve));
@@ -76,12 +80,25 @@ test("HTTP MCP denies anonymous callers and registers no unadvertised tools", as
     });
     assert.equal(advertisedList.status, 200);
     assert.match(await advertisedList.text(), /"name":"rank"/);
+    const called = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
+        name: "rank", arguments: {},
+      } }),
+    });
+    assert.equal(called.status, 200);
+    assert.match(await called.text(), /ready/);
     revoked = true;
     const afterRevoke = await fetch(endpoint, {
       method: "POST", headers: { Authorization: `Bearer ${TOKEN}` },
     });
     assert.equal(afterRevoke.status, 401);
-    assert.equal(gatewayCalls, 4);
+    assert.equal(gatewayCalls, 6);
   } finally {
     await close(mcp);
     await close(gateway);

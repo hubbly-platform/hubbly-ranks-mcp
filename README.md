@@ -14,7 +14,25 @@ Use Node 20+ and run `npm ci && npm run build && npm start`. Configure:
 | `MCP_PUBLIC_HOST` | Exact expected HTTP Host header, including port |
 | `MCP_ALLOWED_ORIGINS` | Comma-separated browser origins; required for non-loopback bind |
 
-Mount `/mcp` behind an HTTPS reverse proxy for remote use and set `MCP_PUBLIC_HOST` to the public Host header it forwards. The service accepts a workspace-scoped `Authorization: Bearer <Rank API key>` header. It never returns or logs the key, and it asks the gateway to reauthenticate on every MCP request, so server-side revocation is effective on the next request. Origin and Host are checked before key use. Limit deployment access and TLS termination appropriately; this repository does not provide OAuth token issuance, hosting, or a dashboard Settings screen.
+Mount `/mcp` behind an HTTPS reverse proxy for remote use and set `MCP_PUBLIC_HOST` to the public Host header it forwards. The service accepts a workspace-scoped `Authorization: Bearer <Rank API key>` header. It never returns or logs the key, and it asks the gateway to reauthenticate on every MCP request, so server-side revocation is effective on the next request. Origin and Host are checked before key use. Limit deployment access and TLS termination appropriately; this repository does not provide OAuth token issuance or hosting.
+
+## Connect a client
+
+Create a key in Rank under Settings → API keys, copy it once, and configure the
+client's Streamable HTTP MCP transport:
+
+- URL: `https://<your-mcp-host>/mcp`
+- Header: `Authorization: Bearer hbr_...`
+
+Codex, Claude, and Cursor can all attach custom headers to an HTTP MCP server;
+keep the key in the client's secret store rather than in a URL or checked-in
+config. The server re-reads capabilities and re-authenticates on every request,
+so a revoked key fails on the next call and newly enabled read tools appear
+without a restart. If the client sends an `Origin`, add it to
+`MCP_ALLOWED_ORIGINS`. The MCP server deliberately exposes no OAuth flow.
+
+The `rank-scan` tool accepts only a public `https://` homepage URL and rejects
+embedded credentials; competitor comparison remains unavailable in this phase.
 
 ## Current scope
 

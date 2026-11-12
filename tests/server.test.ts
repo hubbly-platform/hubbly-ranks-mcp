@@ -11,6 +11,7 @@ function close(server: Server): Promise<void> {
 
 test("HTTP MCP denies anonymous callers and registers no unadvertised tools", async () => {
   let gatewayCalls = 0;
+  let scanCalls = 0;
   let revoked = false;
   let available: unknown[] = [];
   const gateway = createServer((request, response) => {
@@ -19,6 +20,11 @@ test("HTTP MCP denies anonymous callers and registers no unadvertised tools", as
     if (revoked) { response.writeHead(401).end(); return; }
     if (request.url === "/v1/agent/status") {
       response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ status: "ready" }));
+      return;
+    }
+    if (request.url === "/v1/agent/scan") {
+      scanCalls += 1;
+      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ accepted: true }));
       return;
     }
     assert.equal(request.url, "/v1/agent/capabilities");
@@ -93,12 +99,36 @@ test("HTTP MCP denies anonymous callers and registers no unadvertised tools", as
     });
     assert.equal(called.status, 200);
     assert.match(await called.text(), /ready/);
+
+    available = [{ command: "rank-scan", method: "POST", path: "/v1/agent/scan" }];
+    const scanCall = (id: number, url: string) => fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: {
+        name: "rank-scan", arguments: { url },
+      } }),
+    });
+    const credentialScan = await scanCall(5, "https://user:pass@example.com");
+    assert.equal(credentialScan.status, 200);
+    assert.match(await credentialScan.text(), /Invalid arguments|invalid|credentials/);
+    assert.equal(scanCalls, 0);
+    const validScan = await scanCall(6, "https://example.com");
+    assert.equal(validScan.status, 200);
+    assert.match(await validScan.text(), /accepted/);
+    assert.equal(scanCalls, 1);
+
     revoked = true;
     const afterRevoke = await fetch(endpoint, {
       method: "POST", headers: { Authorization: `Bearer ${TOKEN}` },
     });
     assert.equal(afterRevoke.status, 401);
-    assert.equal(gatewayCalls, 6);
+    assert.equal(afterRevoke.headers.get("www-authenticate"), "Bearer");
+    assert.equal(afterRevoke.headers.get("cache-control"), "no-store");
+    assert.equal(gatewayCalls, 9);
   } finally {
     await close(mcp);
     await close(gateway);

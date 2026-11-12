@@ -7,13 +7,23 @@ import type { CatalogEntry } from "./catalog.js";
 import { authorizedCatalog, gatewayOrigin, gatewayRequest, GatewayError } from "./gateway.js";
 
 const UUID = z.uuid();
+const SCAN_URL = z.url()
+  .startsWith("https://")
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, "Scan URL must not contain credentials");
 
 function makeMcpServer(entries: CatalogEntry[], origin: string, token: string): McpServer {
   const server = new McpServer({ name: "hubbly-ranks-mcp", version: "0.1.0" });
   for (const entry of entries) {
     const needsId = entry.path.includes("{id}");
     const inputSchema = entry.command === "rank-scan"
-      ? z.object({ url: z.url().startsWith("https://") })
+      ? z.object({ url: SCAN_URL })
       : needsId ? z.object({ id: UUID }) : z.object({});
     server.registerTool(entry.command, {
       description: `Governed Hubbly Rank ${entry.command} operation. Only registered when the gateway advertises its exact contract.`,
@@ -65,7 +75,12 @@ export function startServer(): ReturnType<typeof createServer> {
       if (response.headersSent) { response.end(); return; }
       const status = error instanceof GatewayError && [401, 403, 429].includes(error.status)
         ? error.status : 503;
-      response.writeHead(status, { "Content-Type": "application/json" })
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      };
+      if (status === 401) headers["WWW-Authenticate"] = "Bearer";
+      response.writeHead(status, headers)
         .end(JSON.stringify({ error: status === 503 ? "gateway_unavailable" : "unauthorized" }));
     }
   });

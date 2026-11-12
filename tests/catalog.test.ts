@@ -38,6 +38,8 @@ test("write commands stay unregistered even if a response advertises them as ava
 test("gateway URL rejects credentials and non-loopback plaintext", () => {
   assert.equal(gatewayOrigin("https://api.example.com"), "https://api.example.com");
   assert.equal(gatewayOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
+  assert.equal(gatewayOrigin("http://[::1]:8080"), "http://[::1]:8080");
   assert.throws(() => gatewayOrigin("http://api.example.com"));
+  assert.throws(() => gatewayOrigin("http://[::2]:8080"));
   assert.throws(() => gatewayOrigin("https://user:pass@api.example.com"));
 });
